@@ -9,6 +9,7 @@ from scrapy.http import Response
 class CarsSpider(scrapy.Spider):
     name = "cars"
     allowed_domains = ["usedcars.bmw.co.uk"]
+    home_url = ["https://usedcars.bmw.co.uk"]
     start_urls = ["https://usedcars.bmw.co.uk/vehicle/api/list/?payment_type=cash&size=23&source=home"]
     method = "get"
 
@@ -35,12 +36,70 @@ class CarsSpider(scrapy.Spider):
         yield scrapy.Request(
             url=self.start_urls[0],
             headers=self.custom_headers,
-            method="get",
-            callback=self.parse
+            method="GET",
+            callback=self.parse_cars_list
         )
 
-    def parse(self, response: Response, **kwargs):
+    def parse_cars_list(self, response: Response, **kwargs):
 
         data = json.loads(response.text)
-        for i in data["results"]:
-            yield {"data": i["derivative"]}
+        for car in data["results"]:
+            yield scrapy.Request(
+                url=f"{self.home_url[0]}/vehicle/{car['advert_id']}",
+                headers=self.custom_headers,
+                callback=self.parse_car
+            )
+
+    def parse_car(self, response: Response):
+
+        scripts = response.css("script::text").getall()
+        for script in scripts:
+            if "UVL.AD" in script:
+                json_text = script.split("UVL.AD = ")[1].split(";")[0]
+                data = json.loads(json_text)
+
+                engine = data['engine']['size'].keys()
+                if not engine:
+                    engine = None
+                else:
+                    engine = f"{list(data['engine']['size'].values())[0]} {list(engine)[0]}"
+
+                range_miles = (
+                    f"{list(data["battery"]["range"].values())[1]} "
+                    f"{list(data["battery"]["range"].values())[0]}"
+                )
+                if not range_miles:
+                    range_miles = None
+
+                exterior = data["colour"]["manufacturer_colour"]
+                if not exterior:
+                    exterior = None
+
+                fuel = data["engine"]["fuel"]
+                if not fuel:
+                    fuel = None
+
+                transmission = data["specification"]["transmission"]
+                if not transmission:
+                    transmission = None
+
+                registration = data["identification"]["registration"]
+                if not registration:
+                    registration = None
+
+                upholstery = data["specification"]["interior"]
+                if not upholstery:
+                    upholstery = None
+                yield {
+                    "model": data["title"],
+                    "name": data["specification"]["derivative"],
+                    "mileage": data["condition_and_state"]["mileage"],
+                    "registered": data["dates"]["registration"],
+                    "engine": engine,
+                    "range": range_miles,
+                    "exterior": exterior,
+                    "fuel": fuel.lower(),
+                    "transmission": transmission.lower(),
+                    "registration": registration,
+                    "upholstery": upholstery,
+                }
