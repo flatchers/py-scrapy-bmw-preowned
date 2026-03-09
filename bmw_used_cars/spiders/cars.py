@@ -58,6 +58,22 @@ class CarsSpider(scrapy.Spider):
                 json_text = script.split("UVL.AD = ")[1].split(";")[0]
                 data = json.loads(json_text)
 
+                model = data["title"]
+                if not model:
+                    model = None
+
+                name = data["specification"]["derivative"]
+                if not name:
+                    name = None
+
+                mileage = data["condition_and_state"]["mileage"]
+                if not mileage:
+                    mileage = None
+
+                registered = data["dates"]["registration"]
+                if not registered:
+                    registered = None
+
                 engine = data['engine']['size'].keys()
                 if not engine:
                     engine = None
@@ -91,10 +107,10 @@ class CarsSpider(scrapy.Spider):
                 if not upholstery:
                     upholstery = None
                 yield {
-                    "model": data["title"],
-                    "name": data["specification"]["derivative"],
-                    "mileage": data["condition_and_state"]["mileage"],
-                    "registered": data["dates"]["registration"],
+                    "model": model,
+                    "name": name,
+                    "mileage": mileage,
+                    "registered": registered,
                     "engine": engine,
                     "range": range_miles,
                     "exterior": exterior,
